@@ -4,7 +4,7 @@ from django.apps import AppConfig
 class CommentsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
-    name = "backend.apps.comments"
+    name = "apps.comments"
 
     def ready(self):
-        import backend.apps.comments.signals
+        from . import signals
