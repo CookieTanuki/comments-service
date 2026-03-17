@@ -34,7 +34,7 @@ class CommentSerializer(serializers.ModelSerializer):
             "homepage",
             "parent",
             "text",
-            "replies",
+            "replies_count",
             "created_at",
             "attachments",
             "children",
