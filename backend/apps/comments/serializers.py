@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Comment
-from backend.apps.attachments.models import Attachment
+from apps.attachments.models import Attachment
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
