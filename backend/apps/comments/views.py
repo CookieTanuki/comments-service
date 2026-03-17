@@ -1,5 +1,6 @@
 from rest_framework.filters import OrderingFilter
-from rest_framework.generics import ListCreateAPIView
+from rest_framework.generics import ListCreateAPIView, CreateAPIView, get_object_or_404
+
 from .models import Comment
 from .serializers import CommentSerializer
 from backend.core.pagination import CommentPagination
@@ -42,3 +43,22 @@ class CommentListView(ListCreateAPIView):
             )
         else:
             serializer.save(user=None)
+
+
+class CommentReplyView(CreateAPIView):
+
+    serializer_class = CommentSerializer
+
+    def perform_create(self, serializer):
+
+        parent_id = self.kwargs.get("pk")
+
+        parent = get_object_or_404(Comment, pk=parent_id)
+
+        user = self.request.user
+
+        if user.is_authenticated:
+            serializer.save(parent=parent, user=user)
+
+        else:
+            serializer.save(parent=parent)
