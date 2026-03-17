@@ -1,9 +1,14 @@
+from rest_framework import status
 from rest_framework.filters import OrderingFilter
 from rest_framework.generics import ListCreateAPIView, CreateAPIView, get_object_or_404
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Comment
 from .serializers import CommentSerializer
 from backend.core.pagination import CommentPagination
+
+import bleach
 
 
 class CommentListView(ListCreateAPIView):
@@ -62,3 +67,23 @@ class CommentReplyView(CreateAPIView):
 
         else:
             serializer.save(parent=parent)
+
+
+class CommentPreviewView(APIView):
+
+    def post(self, request):
+
+        text = request.data.get("text", "")
+
+        allowed_tags = ["a", "i", "code", "strong"]
+
+        cleaned = bleach.clean(
+            text,
+            tags=allowed_tags,
+            strip=True,
+        )
+
+        return Response(
+            {"preview": cleaned},
+            status=status.HTTP_200_OK,
+        )
