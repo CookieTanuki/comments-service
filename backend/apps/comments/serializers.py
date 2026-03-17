@@ -39,3 +39,16 @@ class CommentSerializer(serializers.ModelSerializer):
             "attachments",
             "children",
         ]
+
+    def validate(self, attrs):
+        request = self.context["request"]
+
+        if not request.user.is_authenticated:
+
+            if not attrs.get("username"):
+                raise serializers.ValidationError("Username required")
+
+            if not attrs.get("email"):
+                raise serializers.ValidationError("Email required")
+
+        return attrs
