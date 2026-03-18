@@ -9,6 +9,8 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+import os
+
 from datetime import timedelta
 from pathlib import Path
 
@@ -120,6 +122,7 @@ SIMPLE_JWT = {
 
 AUTH_USER_MODEL = "users.User"
 
+#Redis
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
@@ -131,6 +134,26 @@ CACHES = {
 }
 
 COMMENTS_CACHE_TIMEOUT = 60
+
+#S3
+USE_S3 = os.getenv("USE_S3", False) == "True"
+
+if USE_S3:
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+    AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "eu-central-1")
+
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+
+    AWS_QUERYSTRING_AUTH = False
+
+    AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
+
+    DEFAULT_FILE_STORAGE = "config.storage_backends.MediaStorage"
+
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
