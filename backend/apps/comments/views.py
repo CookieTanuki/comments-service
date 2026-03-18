@@ -3,7 +3,8 @@ from django.core.cache import cache
 
 from rest_framework import status
 from rest_framework.filters import OrderingFilter
-from rest_framework.generics import ListCreateAPIView, CreateAPIView, get_object_or_404
+from rest_framework.generics import ListCreateAPIView, CreateAPIView, get_object_or_404, DestroyAPIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -109,3 +110,11 @@ class CommentPreviewView(APIView):
             {"preview": cleaned},
             status=status.HTTP_200_OK,
         )
+
+
+class CommentDeleteView(DestroyAPIView):
+    queryset = Comment.objects.all()
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Comment.objects.filter(user=self.request.user)
