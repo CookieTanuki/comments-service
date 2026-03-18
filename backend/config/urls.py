@@ -25,6 +25,9 @@ urlpatterns = [
     path('comments/', include('apps.comments.urls')),
     path('captcha/', include('captcha.urls')),
 
+    # Attachments
+    path('attachments/', include('apps.attachments.urls')),
+
     # JWT
     path('api/token/', CustomTokenObtainPairView.as_view(),),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

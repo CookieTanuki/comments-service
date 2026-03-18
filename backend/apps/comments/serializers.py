@@ -5,14 +5,6 @@ from apps.attachments.models import Attachment
 from .utils import sanitize_html, ALLOWED_TAGS
 
 
-class AttachmentSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Attachment
-
-        fields = ["id", "file"]
-
-
 class RecursiveField(serializers.Serializer):
 
     def to_representation(self, value):
@@ -21,7 +13,13 @@ class RecursiveField(serializers.Serializer):
 
 
 class CommentSerializer(serializers.ModelSerializer):
-    attachments = AttachmentSerializer(many=True, required=False)
+    attachments = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Attachment.objects.all(),
+        required=False
+    )
+
+    replies_count = serializers.IntegerField(read_only=True)
 
     children = RecursiveField(many=True, read_only=True)
 
