@@ -1,3 +1,4 @@
+from captcha.fields import CaptchaField
 from rest_framework import serializers
 from .models import Comment
 from apps.attachments.models import Attachment
@@ -20,9 +21,11 @@ class RecursiveField(serializers.Serializer):
 
 
 class CommentSerializer(serializers.ModelSerializer):
-    attachments = AttachmentSerializer(many=True)
+    attachments = AttachmentSerializer(many=True, required=False)
 
     children = RecursiveField(many=True, read_only=True)
+
+    captcha = CaptchaField(required=False)
 
     class Meta:
         model = Comment
@@ -41,6 +44,10 @@ class CommentSerializer(serializers.ModelSerializer):
             "children",
         ]
 
+        extra_kwargs = {
+            "captcha": {"write_only": True},
+        }
+
     def validate_text(self, value):
         return sanitize_html(value)
 
@@ -54,5 +61,8 @@ class CommentSerializer(serializers.ModelSerializer):
 
             if not attrs.get("email"):
                 raise serializers.ValidationError("Email required")
+
+            if not attrs.get("captcha"):
+                raise serializers.ValidationError("Captcha required")
 
         return attrs
