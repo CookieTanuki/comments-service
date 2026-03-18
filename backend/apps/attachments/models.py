@@ -14,7 +14,7 @@ MAX_TEXT_SIZE = 100 * 1024
 def validate_file(file):
     ext = os.path.splitext(file.name)[1].lower()
 
-    if ext not in ALLOWED_IMAGE_EXTENSIONS + ALLOWED_TEXT_EXTENSIONS:
+    if ext not in (ALLOWED_IMAGE_EXTENSIONS | ALLOWED_TEXT_EXTENSIONS):
         raise ValidationError("Unsupported file type")
 
     if ext in ALLOWED_TEXT_EXTENSIONS and file.size > MAX_TEXT_SIZE:
