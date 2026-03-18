@@ -24,6 +24,8 @@ class CommentListView(ListCreateAPIView):
         "created_at"
     ]
 
+    ordering = ["-created_at"]
+
     def get_queryset(self):
 
         return (
