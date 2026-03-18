@@ -120,6 +120,18 @@ SIMPLE_JWT = {
 
 AUTH_USER_MODEL = "users.User"
 
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://redis:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+COMMENTS_CACHE_TIMEOUT = 60
+
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 

@@ -1,3 +1,6 @@
+from django.conf import settings
+from django.core.cache import cache
+
 from rest_framework import status
 from rest_framework.filters import OrderingFilter
 from rest_framework.generics import ListCreateAPIView, CreateAPIView, get_object_or_404
@@ -9,6 +12,7 @@ from .serializers import CommentSerializer
 from core.pagination import CommentPagination
 
 from .utils import sanitize_html
+
 
 class CommentListView(ListCreateAPIView):
 
@@ -38,6 +42,24 @@ class CommentListView(ListCreateAPIView):
             )
         )
 
+    def list(self, request, *args, **kwargs):
+
+        cache_key = f"comments:v1:{request.get_full_path()}"
+
+        cached_response = cache.get(cache_key)
+
+        if cached_response:
+            #print("CACHE HIT")
+            return Response(cached_response, status=status.HTTP_200_OK)
+
+        #print("CACHE MISS")
+
+        response = super().list(request, *args, **kwargs)
+
+        cache.set(cache_key, response.data, timeout=settings.COMMENTS_CACHE_TIMEOUT)
+
+        return response
+
     def perform_create(self, serializer):
         user = self.request.user
 
@@ -49,6 +71,8 @@ class CommentListView(ListCreateAPIView):
             )
         else:
             serializer.save(user=None)
+
+        cache.clear()
 
 
 class CommentReplyView(CreateAPIView):
@@ -68,6 +92,8 @@ class CommentReplyView(CreateAPIView):
 
         else:
             serializer.save(parent=parent)
+
+        cache.clear()
 
 
 class CommentPreviewView(APIView):
