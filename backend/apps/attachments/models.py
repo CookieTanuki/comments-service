@@ -26,6 +26,8 @@ class Attachment(models.Model):
         "comments.Comment",
         on_delete=models.CASCADE,
         related_name="attachments",
+        null=True,
+        blank=True,
     )
 
     file = models.FileField(
@@ -53,4 +55,4 @@ class Attachment(models.Model):
         image.save(self.file.path)
 
     def __str__(self):
-        return f"Attachment {self.id}"
+        return self.file.name
