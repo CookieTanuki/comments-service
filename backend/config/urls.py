@@ -16,10 +16,16 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic import RedirectView
+from rest_framework_simplejwt.views import TokenRefreshView
+
+from apps.users.views import CustomTokenObtainPairView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('comments/', include('apps.comments.urls')),
     path('captcha/', include('captcha.urls')),
+
+    # JWT
+    path('api/token/', CustomTokenObtainPairView.as_view(),),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
