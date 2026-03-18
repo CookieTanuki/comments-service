@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Comment
 from apps.attachments.models import Attachment
+from .utils import sanitize_html
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
@@ -39,6 +40,9 @@ class CommentSerializer(serializers.ModelSerializer):
             "attachments",
             "children",
         ]
+
+    def validate_text(self, value):
+        return sanitize_html(value)
 
     def validate(self, attrs):
         request = self.context["request"]

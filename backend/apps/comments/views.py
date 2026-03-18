@@ -8,8 +8,7 @@ from .models import Comment
 from .serializers import CommentSerializer
 from backend.core.pagination import CommentPagination
 
-import bleach
-
+from .utils import sanitize_html
 
 class CommentListView(ListCreateAPIView):
 
@@ -77,11 +76,7 @@ class CommentPreviewView(APIView):
 
         allowed_tags = ["a", "i", "code", "strong"]
 
-        cleaned = bleach.clean(
-            text,
-            tags=allowed_tags,
-            strip=True,
-        )
+        cleaned = sanitize_html(text)
 
         return Response(
             {"preview": cleaned},
