@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from .models import Comment
 from .serializers import CommentSerializer
-from backend.core.pagination import CommentPagination
+from core.pagination import CommentPagination
 
 from .utils import sanitize_html
 
