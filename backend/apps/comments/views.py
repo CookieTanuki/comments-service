@@ -11,7 +11,7 @@ from .models import Comment
 from .serializers import CommentSerializer
 from core.pagination import CommentPagination
 
-from .utils import sanitize_html
+from .utils import sanitize_html, ALLOWED_TAGS
 
 
 class CommentListView(ListCreateAPIView):
@@ -102,9 +102,7 @@ class CommentPreviewView(APIView):
 
         text = request.data.get("text", "")
 
-        allowed_tags = ["a", "i", "code", "strong"]
-
-        cleaned = sanitize_html(text)
+        cleaned = sanitize_html(text, tags=ALLOWED_TAGS)
 
         return Response(
             {"preview": cleaned},

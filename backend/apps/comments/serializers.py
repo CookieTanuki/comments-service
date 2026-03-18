@@ -2,7 +2,7 @@ from captcha.fields import CaptchaField
 from rest_framework import serializers
 from .models import Comment
 from apps.attachments.models import Attachment
-from .utils import sanitize_html
+from .utils import sanitize_html, ALLOWED_TAGS
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
@@ -49,7 +49,7 @@ class CommentSerializer(serializers.ModelSerializer):
         }
 
     def validate_text(self, value):
-        return sanitize_html(value)
+        return sanitize_html(value, tags=ALLOWED_TAGS)
 
     def validate(self, attrs):
         request = self.context["request"]
