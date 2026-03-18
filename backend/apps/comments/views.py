@@ -12,6 +12,7 @@ from .serializers import CommentSerializer
 from core.pagination import CommentPagination
 
 from .utils import sanitize_html, ALLOWED_TAGS
+from .services.cache import get_comments_cache_key, invalidate_comments_cache
 
 
 class CommentListView(ListCreateAPIView):
@@ -44,7 +45,7 @@ class CommentListView(ListCreateAPIView):
 
     def list(self, request, *args, **kwargs):
 
-        cache_key = f"comments:v1:{request.get_full_path()}"
+        cache_key = get_comments_cache_key(request)
 
         cached_response = cache.get(cache_key)
 
@@ -72,7 +73,7 @@ class CommentListView(ListCreateAPIView):
         else:
             serializer.save(user=None)
 
-        cache.clear()
+        invalidate_comments_cache()
 
 
 class CommentReplyView(CreateAPIView):
@@ -93,7 +94,7 @@ class CommentReplyView(CreateAPIView):
         else:
             serializer.save(parent=parent)
 
-        cache.clear()
+        invalidate_comments_cache()
 
 
 class CommentPreviewView(APIView):
