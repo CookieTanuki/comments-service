@@ -19,6 +19,12 @@ class CommentSerializer(serializers.ModelSerializer):
         required=False
     )
 
+    uploaded_files = serializers.ListField(
+        child=serializers.FileField(),
+        write_only=True,
+        required=False,
+    )
+
     replies_count = serializers.IntegerField(read_only=True)
 
     children = RecursiveField(many=True, read_only=True)
@@ -33,18 +39,39 @@ class CommentSerializer(serializers.ModelSerializer):
             "user",
             "username",
             "email",
-            "homepage",
             "parent",
             "text",
             "replies_count",
             "created_at",
             "attachments",
+            "uploaded_files",
             "children",
         ]
 
         extra_kwargs = {
             "captcha": {"write_only": True},
         }
+
+    def create(self, validated_data):
+        request = self.context["request"]
+
+        files = validated_data.pop("uploaded_files", [])
+
+        attachments = validated_data.pop("attachments", [])
+
+        comment = Comment.objects.create(**validated_data)
+
+        for file in files:
+            Attachment.objects.create(
+                file=file,
+                comment=comment,
+            )
+
+        for attachment in attachments:
+            attachment.comment = comment
+            attachment.save()
+
+        return comment
 
     def validate_text(self, value):
         return sanitize_html(value, tags=ALLOWED_TAGS)

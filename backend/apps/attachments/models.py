@@ -1,8 +1,11 @@
 import os
 
 from django.db import models
+from django.core.files.base import ContentFile
 from rest_framework.exceptions import ValidationError
+
 from PIL import Image
+from io import BytesIO
 
 
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif"}
@@ -43,16 +46,21 @@ class Attachment(models.Model):
 
         if ext in ALLOWED_IMAGE_EXTENSIONS:
             self.resize_image()
+            super().save(update_fields=["file"])
 
     def resize_image(self):
-        image = Image.open(self.file.path)
+        image = Image.open(self.file)
 
         max_width = 320
         max_height = 240
 
         image.thumbnail((max_width, max_height))
 
-        image.save(self.file.path)
+        buffer = BytesIO()
+        image.save(buffer, format=image.format)
+        buffer.seek(0)
+
+        self.file.save(self.file.name, ContentFile(buffer.read()), save=False)
 
     def __str__(self):
         return self.file.name
