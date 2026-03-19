@@ -44,6 +44,9 @@ INSTALLED_APPS = [
     "apps.users",
     "apps.comments",
     "apps.attachments",
+
+    #S3
+    "storages",
 ]
 
 MIDDLEWARE = [
