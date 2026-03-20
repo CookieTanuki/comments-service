@@ -133,7 +133,7 @@ class CommentDeleteView(DestroyAPIView):
         return Comment.objects.filter(user=self.request.user)
 
     def perform_destroy(self, instance):
-        instance.id.is_deleted = True
+        instance.is_deleted = True
         instance.text = "Deleted comment"
         instance.save(update_fields=["is_deleted", "text"])
 
