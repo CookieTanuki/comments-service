@@ -86,7 +86,8 @@ class CommentSerializer(serializers.ModelSerializer):
         if remove_ids:
             Attachment.objects.filter(
                 id__in=remove_ids,
-                comment=instance
+                comment=instance,
+                comment__user=self.context["request"].user,
             ).delete()
 
         for file in files:
