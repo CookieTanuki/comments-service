@@ -13,6 +13,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from .models import Comment
 from .serializers import CommentSerializer
 from core.pagination import CommentPagination
+from .services.service import send_comment_event
 
 from .utils import sanitize_html, ALLOWED_TAGS
 from .services.cache import get_comments_cache_key, invalidate_comments_cache
@@ -130,3 +131,13 @@ class CommentDeleteView(DestroyAPIView):
 
     def get_queryset(self):
         return Comment.objects.filter(user=self.request.user)
+
+    def perform_destroy(self, instance):
+        comment_id = instance.id
+
+        instance.delete()
+
+        send_comment_event({
+            "type": "deleted",
+            "id": comment_id,
+        })

@@ -4,6 +4,7 @@ from rest_framework import serializers
 from .models import Comment
 from apps.attachments.models import Attachment
 from .utils import sanitize_html, ALLOWED_TAGS
+from .services.service import send_comment_event
 
 
 class RecursiveField(serializers.Serializer):
@@ -71,6 +72,12 @@ class CommentSerializer(serializers.ModelSerializer):
                 comment=comment,
             )
 
+        send_comment_event({
+            "type": "created",
+            "id": comment.id,
+            "text": comment.text,
+        })
+
         return comment
 
     def update(self, instance, validated_data):
@@ -95,6 +102,12 @@ class CommentSerializer(serializers.ModelSerializer):
                 file=file,
                 comment=instance,
             )
+
+        send_comment_event({
+            "type": "updated",
+            "id": instance.id,
+            "text": instance.text,
+        })
 
         return instance
 
