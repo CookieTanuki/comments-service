@@ -1,4 +1,5 @@
 from captcha.fields import CaptchaField
+from django.template.defaulttags import comment
 from rest_framework import serializers
 from .models import Comment
 from apps.attachments.models import Attachment
@@ -25,6 +26,12 @@ class CommentSerializer(serializers.ModelSerializer):
         required=False,
     )
 
+    remove_attachments = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+    )
+
     replies_count = serializers.IntegerField(read_only=True)
 
     children = RecursiveField(many=True, read_only=True)
@@ -45,6 +52,7 @@ class CommentSerializer(serializers.ModelSerializer):
             "created_at",
             "attachments",
             "uploaded_files",
+            "remove_attachments",
             "children",
         ]
 
@@ -53,11 +61,7 @@ class CommentSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
-        request = self.context["request"]
-
         files = validated_data.pop("uploaded_files", [])
-
-        attachments = validated_data.pop("attachments", [])
 
         comment = Comment.objects.create(**validated_data)
 
@@ -67,11 +71,31 @@ class CommentSerializer(serializers.ModelSerializer):
                 comment=comment,
             )
 
-        for attachment in attachments:
-            attachment.comment = comment
-            attachment.save()
-
         return comment
+
+    def update(self, instance, validated_data):
+        files = validated_data.pop("uploaded_files", [])
+
+        remove_ids = validated_data.pop("remove_attachments", [])
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+
+        if remove_ids:
+            Attachment.objects.filter(
+                id__in=remove_ids,
+                comment=instance
+            ).delete()
+
+        for file in files:
+            Attachment.objects.create(
+                file=file,
+                comment=instance,
+            )
+
+        return instance
 
     def validate_text(self, value):
         return sanitize_html(value, tags=ALLOWED_TAGS)
