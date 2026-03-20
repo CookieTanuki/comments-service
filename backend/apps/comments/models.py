@@ -41,6 +41,8 @@ class Comment(MPTTModel):
 
     is_edited = models.BooleanField(default=False)
 
+    is_deleted = models.BooleanField(default=False)
+
     class MPTTMeta:
         order_insertion_by = ["created_at"]
 

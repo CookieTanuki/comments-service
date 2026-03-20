@@ -61,6 +61,14 @@ class CommentSerializer(serializers.ModelSerializer):
             "captcha": {"write_only": True},
         }
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if instance.is_deleted:
+            data["text"] = "Deleted comment"
+
+        return data
+
     def create(self, validated_data):
         files = validated_data.pop("uploaded_files", [])
 
@@ -103,19 +111,27 @@ class CommentSerializer(serializers.ModelSerializer):
                 comment=instance,
             )
 
+        if instance.is_deleted:
+            raise serializers.ValidationError("Cannot edit deleted comment")
+
         send_comment_event({
             "type": "updated",
             "id": instance.id,
             "text": instance.text,
         })
 
-        return instance
+        return super().update(instance, validated_data)
 
     def validate_text(self, value):
         return sanitize_html(value, tags=ALLOWED_TAGS)
 
     def validate(self, attrs):
         request = self.context["request"]
+
+        parent = attrs.get("parent")
+
+        if parent and parent.is_deleted:
+            raise serializers.ValidationError("Cannot reply to deleted comment")
 
         if not request.user.is_authenticated:
 
@@ -128,4 +144,4 @@ class CommentSerializer(serializers.ModelSerializer):
             if not attrs.get("captcha"):
                 raise serializers.ValidationError("Captcha required")
 
-        return attrs
+        return super().validate(attrs)
