@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "mptt",
     "captcha",
+    "channels",
 
     # Local apps
     "apps.users",
@@ -80,6 +81,8 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+
+ASGI_APPLICATION = 'config.asgi.application'
 
 
 # Database
