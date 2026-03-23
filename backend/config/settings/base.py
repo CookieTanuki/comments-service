@@ -84,6 +84,14 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 ASGI_APPLICATION = 'config.asgi.application'
 
+CHANNEL_LAYERS = {
+    "default": {
+        # Quick local/default fallback so comment creation does not depend on an
+        # external channel backend being configured.
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
+
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
