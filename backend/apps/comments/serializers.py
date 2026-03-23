@@ -1,4 +1,5 @@
 from captcha.fields import CaptchaField
+from django.db import transaction
 from django.template.defaulttags import comment
 from rest_framework import serializers
 from .models import Comment
@@ -58,6 +59,8 @@ class CommentSerializer(serializers.ModelSerializer):
         ]
 
         extra_kwargs = {
+            "username": {"required": False},
+            "email": {"required": False},
             "captcha": {"write_only": True},
         }
 
@@ -72,13 +75,18 @@ class CommentSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         files = validated_data.pop("uploaded_files", [])
 
-        comment = Comment.objects.create(**validated_data)
+        validated_data.pop("attachments", None)
 
-        for file in files:
-            Attachment.objects.create(
-                file=file,
-                comment=comment,
-            )
+        with transaction.atomic():
+            comment = Comment.objects.create(**validated_data)
+
+            if files:
+                attachments = [
+                    Attachment(file=file, comment=comment)
+                    for file in files
+                ]
+
+                Attachment.objects.bulk_create(attachments)
 
         send_comment_event({
             "type": "created",
