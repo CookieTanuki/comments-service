@@ -1,14 +1,14 @@
 from django.conf import settings
 from django.core.cache import cache
 
-from rest_framework import status
+from rest_framework import status, serializers
 from rest_framework.filters import OrderingFilter
 from rest_framework.generics import ListCreateAPIView, CreateAPIView, get_object_or_404, DestroyAPIView, \
     RetrieveUpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 
 from .models import Comment
 from .serializers import CommentSerializer
@@ -27,7 +27,7 @@ class CommentListView(ListCreateAPIView):
 
     filter_backends = [OrderingFilter]
 
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     ordering_fields = [
         "username",
@@ -85,17 +85,25 @@ class CommentListView(ListCreateAPIView):
 class CommentReplyView(CreateAPIView):
 
     serializer_class = CommentSerializer
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def perform_create(self, serializer):
 
         parent_id = self.kwargs.get("pk")
 
         parent = get_object_or_404(Comment, pk=parent_id)
+        if parent.is_deleted:
+            raise serializers.ValidationError("Cannot reply to deleted comment")
 
         user = self.request.user
 
         if user.is_authenticated:
-            serializer.save(parent=parent, user=user)
+            serializer.save(
+                parent=parent,
+                user=user,
+                username=serializer.validated_data.get("username", user.username),
+                email=serializer.validated_data.get("email", user.email),
+            )
 
         else:
             serializer.save(parent=parent)
@@ -120,9 +128,14 @@ class CommentPreviewView(APIView):
 class CommentUpdateView(RetrieveUpdateAPIView):
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         return Comment.objects.filter(user=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save()
+        invalidate_comments_cache()
 
 
 class CommentDeleteView(DestroyAPIView):
@@ -136,6 +149,8 @@ class CommentDeleteView(DestroyAPIView):
         instance.is_deleted = True
         instance.text = "Deleted comment"
         instance.save(update_fields=["is_deleted", "text"])
+        instance.attachments.all().delete()
+        invalidate_comments_cache()
 
         send_comment_event({
             "type": "deleted",

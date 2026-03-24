@@ -1,9 +1,8 @@
 from captcha.fields import CaptchaField
 from django.db import transaction
-from django.template.defaulttags import comment
 from rest_framework import serializers
 from .models import Comment
-from apps.attachments.models import Attachment
+from apps.attachments.models import Attachment, validate_file
 from .utils import sanitize_html, ALLOWED_TAGS
 from .services.service import send_comment_event
 
@@ -80,13 +79,8 @@ class CommentSerializer(serializers.ModelSerializer):
         with transaction.atomic():
             comment = Comment.objects.create(**validated_data)
 
-            if files:
-                attachments = [
-                    Attachment(file=file, comment=comment)
-                    for file in files
-                ]
-
-                Attachment.objects.bulk_create(attachments)
+            for file in files:
+                Attachment.objects.create(file=file, comment=comment)
 
         send_comment_event({
             "type": "created",
@@ -97,30 +91,35 @@ class CommentSerializer(serializers.ModelSerializer):
         return comment
 
     def update(self, instance, validated_data):
+        if instance.is_deleted:
+            raise serializers.ValidationError("Cannot edit deleted comment")
+
         files = validated_data.pop("uploaded_files", [])
 
         remove_ids = validated_data.pop("remove_attachments", [])
+        original_text = instance.text
 
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
+        with transaction.atomic():
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
 
-        instance.save()
+            if "text" in validated_data and validated_data["text"] != original_text:
+                instance.is_edited = True
 
-        if remove_ids:
-            Attachment.objects.filter(
-                id__in=remove_ids,
-                comment=instance,
-                comment__user=self.context["request"].user,
-            ).delete()
+            instance.save()
 
-        for file in files:
-            Attachment.objects.create(
-                file=file,
-                comment=instance,
-            )
+            if remove_ids:
+                Attachment.objects.filter(
+                    id__in=remove_ids,
+                    comment=instance,
+                    comment__user=self.context["request"].user,
+                ).delete()
 
-        if instance.is_deleted:
-            raise serializers.ValidationError("Cannot edit deleted comment")
+            for file in files:
+                Attachment.objects.create(
+                    file=file,
+                    comment=instance,
+                )
 
         send_comment_event({
             "type": "updated",
@@ -128,7 +127,13 @@ class CommentSerializer(serializers.ModelSerializer):
             "text": instance.text,
         })
 
-        return super().update(instance, validated_data)
+        return instance
+
+    def validate_uploaded_files(self, value):
+        for file in value:
+            validate_file(file)
+
+        return value
 
     def validate_text(self, value):
         return sanitize_html(value, tags=ALLOWED_TAGS)
