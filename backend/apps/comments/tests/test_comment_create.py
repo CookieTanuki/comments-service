@@ -11,7 +11,7 @@ from apps.attachments.models import Attachment
 from apps.comments.models import Comment
 
 
-class CommentCreateWithUploadsTests(TestCase):
+class CommentFlowsTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = get_user_model().objects.create_user(
@@ -22,25 +22,31 @@ class CommentCreateWithUploadsTests(TestCase):
         self.client.force_authenticate(self.user)
 
         self.temp_media_dir = tempfile.TemporaryDirectory()
-        self.media_override = override_settings(MEDIA_ROOT=self.temp_media_dir.name)
-        self.media_override.enable()
+        self.settings_override = override_settings(
+            MEDIA_ROOT=self.temp_media_dir.name,
+            CACHES={
+                "default": {
+                    "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                }
+            },
+        )
+        self.settings_override.enable()
 
     def tearDown(self):
-        self.media_override.disable()
+        self.settings_override.disable()
         self.temp_media_dir.cleanup()
 
-    def test_authenticated_user_can_create_comment_with_files_in_one_request(self):
+    def _uploaded_file(self, filename, content_type):
         backend_dir = Path(__file__).resolve().parents[3]
-        text_file = SimpleUploadedFile(
-            "test.txt",
-            (backend_dir / "test.txt").read_bytes(),
-            content_type="text/plain",
+        return SimpleUploadedFile(
+            filename,
+            (backend_dir / filename).read_bytes(),
+            content_type=content_type,
         )
-        image_file = SimpleUploadedFile(
-            "testimage.png",
-            (backend_dir / "testimage.png").read_bytes(),
-            content_type="image/png",
-        )
+
+    def test_authenticated_user_can_create_comment_with_files_in_one_request(self):
+        text_file = self._uploaded_file("test.txt", "text/plain")
+        image_file = self._uploaded_file("testimage.png", "image/png")
 
         response = self.client.post(
             reverse("comments:list"),
@@ -61,3 +67,137 @@ class CommentCreateWithUploadsTests(TestCase):
         self.assertEqual(attachments.count(), 2)
         self.assertTrue(attachments[0].file.name.endswith(".txt"))
         self.assertTrue(attachments[1].file.name.endswith(".png"))
+
+    def test_authenticated_user_can_create_comment_without_attachments_using_json(self):
+        response = self.client.post(
+            reverse("comments:list"),
+            {"text": "plain comment"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["username"], self.user.username)
+        self.assertEqual(response.data["email"], self.user.email)
+        self.assertEqual(Attachment.objects.count(), 0)
+
+    def test_authenticated_user_can_create_reply_without_attachments_using_json(self):
+        parent = Comment.objects.create(
+            user=self.user,
+            username=self.user.username,
+            email=self.user.email,
+            text="parent comment",
+        )
+
+        response = self.client.post(
+            reverse("comments:comment-reply", kwargs={"pk": parent.pk}),
+            {"text": "reply comment"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        reply = Comment.objects.get(pk=response.data["id"])
+        self.assertEqual(reply.parent_id, parent.pk)
+        self.assertEqual(reply.username, self.user.username)
+        self.assertEqual(reply.email, self.user.email)
+
+    def test_authenticated_user_can_create_reply_with_files_in_one_request(self):
+        parent = Comment.objects.create(
+            user=self.user,
+            username=self.user.username,
+            email=self.user.email,
+            text="parent comment",
+        )
+        text_file = self._uploaded_file("test.txt", "text/plain")
+        image_file = self._uploaded_file("testimage.png", "image/png")
+
+        response = self.client.post(
+            reverse("comments:comment-reply", kwargs={"pk": parent.pk}),
+            {
+                "text": "reply with files",
+                "uploaded_files": [text_file, image_file],
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        reply = Comment.objects.get(pk=response.data["id"])
+        attachments = Attachment.objects.filter(comment=reply).order_by("id")
+
+        self.assertEqual(reply.parent_id, parent.pk)
+        self.assertEqual(attachments.count(), 2)
+
+    def test_authenticated_user_can_update_comment_text_and_attachments(self):
+        comment = Comment.objects.create(
+            user=self.user,
+            username=self.user.username,
+            email=self.user.email,
+            text="before update",
+        )
+        old_text_file = Attachment.objects.create(
+            comment=comment,
+            file=self._uploaded_file("test.txt", "text/plain"),
+        )
+        Attachment.objects.create(
+            comment=comment,
+            file=self._uploaded_file("testimage.png", "image/png"),
+        )
+
+        response = self.client.patch(
+            reverse("comments:comment-update", kwargs={"pk": comment.pk}),
+            {
+                "text": "after update",
+                "remove_attachments": [old_text_file.pk],
+                "uploaded_files": [self._uploaded_file("test.txt", "text/plain")],
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        comment.refresh_from_db()
+        attachments = Attachment.objects.filter(comment=comment).order_by("id")
+
+        self.assertEqual(comment.text, "after update")
+        self.assertTrue(comment.is_edited)
+        self.assertEqual(attachments.count(), 2)
+        self.assertFalse(attachments.filter(pk=old_text_file.pk).exists())
+
+    def test_soft_delete_keeps_comment_and_removes_attachments(self):
+        comment = Comment.objects.create(
+            user=self.user,
+            username=self.user.username,
+            email=self.user.email,
+            text="comment to delete",
+        )
+        Attachment.objects.create(
+            comment=comment,
+            file=self._uploaded_file("test.txt", "text/plain"),
+        )
+
+        response = self.client.delete(
+            reverse("comments:comment-delete", kwargs={"pk": comment.pk}),
+        )
+
+        self.assertEqual(response.status_code, 204)
+        comment.refresh_from_db()
+
+        self.assertTrue(comment.is_deleted)
+        self.assertEqual(comment.text, "Deleted comment")
+        self.assertEqual(comment.attachments.count(), 0)
+
+    def test_cannot_reply_to_deleted_comment(self):
+        parent = Comment.objects.create(
+            user=self.user,
+            username=self.user.username,
+            email=self.user.email,
+            text="parent comment",
+            is_deleted=True,
+        )
+
+        response = self.client.post(
+            reverse("comments:comment-reply", kwargs={"pk": parent.pk}),
+            {"text": "reply should fail"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Comment.objects.filter(parent=parent).count(), 0)
