@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
+from django.test import RequestFactory
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -9,6 +10,7 @@ from rest_framework.test import APIClient
 
 from apps.attachments.models import Attachment
 from apps.comments.models import Comment
+from apps.comments.services.cache import get_comments_cache_key, invalidate_comments_cache
 
 
 class CommentFlowsTests(TestCase):
@@ -20,6 +22,7 @@ class CommentFlowsTests(TestCase):
             password="testpass123",
         )
         self.client.force_authenticate(self.user)
+        self.request_factory = RequestFactory()
 
         self.temp_media_dir = tempfile.TemporaryDirectory()
         self.settings_override = override_settings(
@@ -201,3 +204,17 @@ class CommentFlowsTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Comment.objects.filter(parent=parent).count(), 0)
+
+    def test_comments_cache_key_changes_after_invalidation(self):
+        request = self.request_factory.get("/comments/?page=1")
+
+        first_key = get_comments_cache_key(request)
+        invalidate_comments_cache()
+        second_key = get_comments_cache_key(request)
+
+        self.assertNotEqual(first_key, second_key)
+
+    def test_standalone_attachment_create_endpoint_is_removed(self):
+        response = self.client.post("/attachments/", {}, format="multipart")
+
+        self.assertEqual(response.status_code, 404)
