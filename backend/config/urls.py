@@ -20,7 +20,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from apps.users.views import CustomTokenObtainPairView
+from apps.users.views import CustomTokenObtainPairView, UserRegistrationView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -28,6 +28,7 @@ urlpatterns = [
     path('captcha/', include('captcha.urls')),
 
     # JWT
+    path('api/register/', UserRegistrationView.as_view(), name='register'),
     path('api/token/', CustomTokenObtainPairView.as_view(),),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
