@@ -1,11 +1,12 @@
 import os
-
+from io import BytesIO
 from django.db import models
 from django.core.files.base import ContentFile
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from rest_framework.exceptions import ValidationError
 
 from PIL import Image
-from io import BytesIO
 
 
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif"}
@@ -64,3 +65,9 @@ class Attachment(models.Model):
 
     def __str__(self):
         return self.file.name
+
+
+@receiver(post_delete, sender=Attachment)
+def delete_attachment_file(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)
