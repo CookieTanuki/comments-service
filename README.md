@@ -4,6 +4,10 @@ Threaded discussion board with anonymous and authenticated posting, file attachm
 
 The project ships with a Django backend, a Vue frontend, Docker-based deployment, and a production-ready Redis channel layer for websocket fan-out across processes and containers.
 
+## Live Deployment
+
+- Project URL: http://13.49.137.249/
+
 ## Features
 
 - Top-level comments and nested replies
