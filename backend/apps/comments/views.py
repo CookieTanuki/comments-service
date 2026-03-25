@@ -1,5 +1,6 @@
 from django.conf import settings
-from django.core.cache import cache
+from captcha.helpers import captcha_image_url
+from captcha.models import CaptchaStore
 
 from rest_framework import status, serializers
 from rest_framework.filters import OrderingFilter
@@ -16,7 +17,12 @@ from core.pagination import CommentPagination
 from .services.service import send_comment_event
 
 from .utils import sanitize_html, ALLOWED_TAGS
-from .services.cache import get_comments_cache_key, invalidate_comments_cache
+from .services.cache import (
+    get_comments_cache_key,
+    get_comments_list_cache,
+    invalidate_comments_cache,
+    set_comments_list_cache,
+)
 
 
 class CommentListView(ListCreateAPIView):
@@ -53,7 +59,7 @@ class CommentListView(ListCreateAPIView):
 
         cache_key = get_comments_cache_key(request)
 
-        cached_response = cache.get(cache_key)
+        cached_response = get_comments_list_cache(cache_key)
 
         if cached_response:
             #print("CACHE HIT")
@@ -63,7 +69,11 @@ class CommentListView(ListCreateAPIView):
 
         response = super().list(request, *args, **kwargs)
 
-        cache.set(cache_key, response.data, timeout=settings.COMMENTS_CACHE_TIMEOUT)
+        set_comments_list_cache(
+            cache_key,
+            response.data,
+            timeout=settings.COMMENTS_CACHE_TIMEOUT,
+        )
 
         return response
 
@@ -73,8 +83,8 @@ class CommentListView(ListCreateAPIView):
         if user.is_authenticated:
             serializer.save(
                 user=user,
-                username=serializer.validated_data.get("username", user.username),
-                email=serializer.validated_data.get("email", user.email),
+                username=user.username,
+                email=user.email,
             )
         else:
             serializer.save(user=None)
@@ -101,8 +111,8 @@ class CommentReplyView(CreateAPIView):
             serializer.save(
                 parent=parent,
                 user=user,
-                username=serializer.validated_data.get("username", user.username),
-                email=serializer.validated_data.get("email", user.email),
+                username=user.username,
+                email=user.email,
             )
 
         else:
@@ -121,6 +131,20 @@ class CommentPreviewView(APIView):
 
         return Response(
             {"preview": cleaned},
+            status=status.HTTP_200_OK,
+        )
+
+
+class CommentCaptchaView(APIView):
+
+    def get(self, request):
+        key = CaptchaStore.generate_key()
+
+        return Response(
+            {
+                "key": key,
+                "image_url": request.build_absolute_uri(captcha_image_url(key)),
+            },
             status=status.HTTP_200_OK,
         )
 
