@@ -15,7 +15,7 @@ from channels.auth import AuthMiddlewareStack
 
 import apps.comments.routing
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 
 django_asgi_app = get_asgi_application()
 
