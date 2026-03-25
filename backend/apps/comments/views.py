@@ -1,6 +1,7 @@
 from django.conf import settings
 from captcha.helpers import captcha_image_url
 from captcha.models import CaptchaStore
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 
 from rest_framework import status, serializers
 from rest_framework.filters import OrderingFilter
@@ -25,6 +26,21 @@ from .services.cache import (
 )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Comments"],
+        summary="List top-level comments",
+        description="Return paginated top-level comments with nested replies and attachments.",
+    ),
+    post=extend_schema(
+        tags=["Comments"],
+        summary="Create a top-level comment",
+        description=(
+            "Create a new top-level comment. Guests must provide username, email, and captcha. "
+            "Authenticated users inherit username and email from their account."
+        ),
+    ),
+)
 class CommentListView(ListCreateAPIView):
 
     serializer_class = CommentSerializer
@@ -92,6 +108,13 @@ class CommentListView(ListCreateAPIView):
         invalidate_comments_cache()
 
 
+@extend_schema_view(
+    post=extend_schema(
+        tags=["Comments"],
+        summary="Create a reply",
+        description="Create a reply for an existing comment.",
+    ),
+)
 class CommentReplyView(CreateAPIView):
 
     serializer_class = CommentSerializer
@@ -123,6 +146,22 @@ class CommentReplyView(CreateAPIView):
 
 class CommentPreviewView(APIView):
 
+    @extend_schema(
+        tags=["Comments"],
+        summary="Preview sanitized comment HTML",
+        request=inline_serializer(
+            name="CommentPreviewRequest",
+            fields={
+                "text": serializers.CharField(),
+            },
+        ),
+        responses=inline_serializer(
+            name="CommentPreviewResponse",
+            fields={
+                "preview": serializers.CharField(),
+            },
+        ),
+    )
     def post(self, request):
 
         text = request.data.get("text", "")
@@ -137,6 +176,17 @@ class CommentPreviewView(APIView):
 
 class CommentCaptchaView(APIView):
 
+    @extend_schema(
+        tags=["Comments"],
+        summary="Get captcha challenge",
+        responses=inline_serializer(
+            name="CommentCaptchaResponse",
+            fields={
+                "key": serializers.CharField(),
+                "image_url": serializers.URLField(),
+            },
+        ),
+    )
     def get(self, request):
         key = CaptchaStore.generate_key()
 
@@ -149,6 +199,23 @@ class CommentCaptchaView(APIView):
         )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Comments"],
+        summary="Retrieve own comment",
+        description="Retrieve a comment owned by the authenticated user.",
+    ),
+    patch=extend_schema(
+        tags=["Comments"],
+        summary="Update own comment",
+        description="Update comment text and attachment set for a comment owned by the authenticated user.",
+    ),
+    put=extend_schema(
+        tags=["Comments"],
+        summary="Replace own comment",
+        description="Replace a comment owned by the authenticated user.",
+    ),
+)
 class CommentUpdateView(RetrieveUpdateAPIView):
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
@@ -162,8 +229,18 @@ class CommentUpdateView(RetrieveUpdateAPIView):
         invalidate_comments_cache()
 
 
+@extend_schema_view(
+    delete=extend_schema(
+        tags=["Comments"],
+        summary="Soft delete own comment",
+        description="Soft delete a comment owned by the authenticated user and remove its attachments.",
+        request=None,
+        responses={204: None},
+    ),
+)
 class CommentDeleteView(DestroyAPIView):
     queryset = Comment.objects.all()
+    serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):

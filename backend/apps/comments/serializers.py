@@ -30,10 +30,10 @@ class CommentAttachmentSerializer(serializers.ModelSerializer):
         model = Attachment
         fields = ["id", "name", "url", "uploaded_at"]
 
-    def get_name(self, obj):
+    def get_name(self, obj) -> str:
         return os.path.basename(obj.file.name)
 
-    def get_url(self, obj):
+    def get_url(self, obj) -> str:
         if not obj.file:
             return ""
 

@@ -97,6 +97,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
     "mptt",
     "captcha",
     "channels",
@@ -169,6 +171,25 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.AllowAny",
     ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Comments Service API",
+    "DESCRIPTION": (
+        "Threaded comments API with guest captcha posting, JWT authentication, "
+        "attachments, soft delete, and websocket updates."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
+    "TAGS": [
+        {"name": "Auth", "description": "Registration and JWT authentication endpoints."},
+        {"name": "Comments", "description": "Comment, reply, preview, and moderation endpoints."},
+        {"name": "Docs", "description": "OpenAPI schema and interactive API documentation."},
+    ],
 }
 
 SIMPLE_JWT = {

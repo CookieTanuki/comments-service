@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.users.views import CustomTokenObtainPairView, UserRegistrationView
@@ -27,7 +28,11 @@ urlpatterns = [
     path('comments/', include('apps.comments.urls')),
     path('captcha/', include('captcha.urls')),
 
-    # JWT
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
+    # Auth
     path('api/register/', UserRegistrationView.as_view(), name='register'),
     path('api/token/', CustomTokenObtainPairView.as_view(),),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

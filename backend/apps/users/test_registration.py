@@ -65,3 +65,21 @@ class UserRegistrationTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["password_confirm"][0], "Passwords do not match")
+
+
+class ApiDocumentationTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_openapi_schema_is_available(self):
+        response = self.client.get(reverse("schema"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["info"]["title"], "Comments Service API")
+        self.assertIn("/comments/", response.data["paths"])
+
+    def test_swagger_ui_is_available(self):
+        response = self.client.get(reverse("swagger-ui"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "swagger-ui")
