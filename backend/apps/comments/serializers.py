@@ -1,10 +1,18 @@
-from captcha.fields import CaptchaField
+import os
+
+from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
+from captcha.models import CaptchaStore
+
 from .models import Comment
 from apps.attachments.models import Attachment, validate_file
 from .utils import sanitize_html, ALLOWED_TAGS
 from .services.service import send_comment_event
+
+
+User = get_user_model()
 
 
 class RecursiveField(serializers.Serializer):
@@ -14,12 +22,28 @@ class RecursiveField(serializers.Serializer):
         return serializer.data
 
 
+class CommentAttachmentSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Attachment
+        fields = ["id", "name", "url", "uploaded_at"]
+
+    def get_name(self, obj):
+        return os.path.basename(obj.file.name)
+
+    def get_url(self, obj):
+        if not obj.file:
+            return ""
+
+        request = self.context.get("request")
+        url = obj.file.url
+        return request.build_absolute_uri(url) if request else url
+
+
 class CommentSerializer(serializers.ModelSerializer):
-    attachments = serializers.PrimaryKeyRelatedField(
-        many=True,
-        queryset=Attachment.objects.all(),
-        required=False
-    )
+    attachments = CommentAttachmentSerializer(many=True, read_only=True)
 
     uploaded_files = serializers.ListField(
         child=serializers.FileField(),
@@ -37,7 +61,8 @@ class CommentSerializer(serializers.ModelSerializer):
 
     children = RecursiveField(many=True, read_only=True)
 
-    captcha = CaptchaField(required=False)
+    captcha_key = serializers.CharField(write_only=True, required=False)
+    captcha_response = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = Comment
@@ -51,16 +76,21 @@ class CommentSerializer(serializers.ModelSerializer):
             "text",
             "replies_count",
             "created_at",
+            "updated_at",
+            "is_edited",
+            "is_deleted",
             "attachments",
             "uploaded_files",
             "remove_attachments",
+            "captcha_key",
+            "captcha_response",
             "children",
         ]
 
         extra_kwargs = {
             "username": {"required": False},
             "email": {"required": False},
-            "captcha": {"write_only": True},
+            "user": {"read_only": True},
         }
 
     def to_representation(self, instance):
@@ -73,14 +103,17 @@ class CommentSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         files = validated_data.pop("uploaded_files", [])
-
-        validated_data.pop("attachments", None)
+        captcha_key = validated_data.pop("captcha_key", None)
+        validated_data.pop("captcha_response", None)
 
         with transaction.atomic():
             comment = Comment.objects.create(**validated_data)
 
             for file in files:
                 Attachment.objects.create(file=file, comment=comment)
+
+            if captcha_key:
+                CaptchaStore.objects.filter(hashkey=captcha_key).delete()
 
         send_comment_event({
             "type": "created",
@@ -95,8 +128,13 @@ class CommentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Cannot edit deleted comment")
 
         files = validated_data.pop("uploaded_files", [])
-
         remove_ids = validated_data.pop("remove_attachments", [])
+        validated_data.pop("captcha_key", None)
+        validated_data.pop("captcha_response", None)
+        validated_data.pop("email", None)
+        validated_data.pop("parent", None)
+        validated_data.pop("user", None)
+        validated_data.pop("username", None)
         original_text = instance.text
 
         with transaction.atomic():
@@ -140,6 +178,14 @@ class CommentSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context["request"]
+        username = attrs.get("username")
+        email = attrs.get("email")
+
+        if username is not None:
+            attrs["username"] = username.strip()
+
+        if email is not None:
+            attrs["email"] = email.strip()
 
         parent = attrs.get("parent")
 
@@ -147,14 +193,32 @@ class CommentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Cannot reply to deleted comment")
 
         if not request.user.is_authenticated:
-
             if not attrs.get("username"):
-                raise serializers.ValidationError("Username required")
+                raise serializers.ValidationError({"username": "Username required"})
 
             if not attrs.get("email"):
-                raise serializers.ValidationError("Email required")
+                raise serializers.ValidationError({"email": "Email required"})
 
-            if not attrs.get("captcha"):
-                raise serializers.ValidationError("Captcha required")
+            if User.objects.filter(username__iexact=attrs["username"]).exists():
+                raise serializers.ValidationError({
+                    "username": "This username is already registered",
+                })
+
+            captcha_key = attrs.get("captcha_key")
+            captcha_response = attrs.get("captcha_response")
+
+            if not captcha_key:
+                raise serializers.ValidationError({"captcha_key": "Captcha key required"})
+
+            if not captcha_response:
+                raise serializers.ValidationError({"captcha_response": "Captcha answer required"})
+
+            captcha = CaptchaStore.objects.filter(
+                hashkey=captcha_key,
+                response=captcha_response.strip().lower(),
+                expiration__gt=timezone.now(),
+            ).first()
+            if captcha is None:
+                raise serializers.ValidationError({"captcha_response": "Invalid captcha"})
 
         return super().validate(attrs)
